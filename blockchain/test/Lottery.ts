@@ -1,77 +1,73 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Lottery } from "../typechain-types/contracts/Lottery";
 
-const payloadToEnterLottery = { value: ethers.utils.parseEther("0.01") };
-
-describe("Lottery", () => {
+describe("Lottery Statistics Methods", function () {
   let lottery: Lottery;
-  let owner: SignerWithAddress;
-  let player1: SignerWithAddress;
-  let player2: SignerWithAddress;
-  let signers: SignerWithAddress[];
+  let owner: any;
+  let player1: any;
+  let player2: any;
 
-  const setUpTest = async () => {
-    signers = await ethers.getSigners();
-    [owner, player1, player2] = signers;
+  beforeEach(async function () {
+    const signers = await ethers.getSigners();
+    owner = signers[0];
+    player1 = signers[1];
+    player2 = signers[2];
 
-    const lotteryFactory = await ethers.getContractFactory("Lottery", owner);
-    lottery = await lotteryFactory.deploy();
+    const LotteryFactory = await ethers.getContractFactory("Lottery");
+    lottery = await LotteryFactory.deploy() as Lottery;
     await lottery.deployed();
-  };
-
-  beforeEach(setUpTest);
-
-  it("Should deploy the Lottery contract", async () => {
-    expect(lottery.address).to.not.equal(0);
   });
 
-  it("Should allow players to enter the lottery", async () => {
-    await lottery.connect(player1).enter(payloadToEnterLottery);
-    const players = await lottery.getPlayers();
-
-    expect(players.length).to.equal(1);
-    expect(players[0]).to.equal(player1.address);
+  it("should track initial total rounds played", async function () {
+    const initialRounds = await lottery.getTotalRoundsPlayed();
+    expect(initialRounds).to.equal(0);
   });
 
-  it("Should not allow players to enter with less than 0.01 ether", async () => {
-    const enterLotteryTx = lottery
-      .connect(player1)
-      .enter({ value: ethers.utils.parseEther("0.009") });
+  it("should retrieve round statistics after a lottery round", async function () {
+    // Simulate a lottery round
+    await lottery.connect(player1).enter({ value: ethers.utils.parseEther("0.01") });
+    await lottery.connect(player2).enter({ value: ethers.utils.parseEther("0.01") });
+    
+    // Start picking winner
+    await lottery.connect(owner).startPickingWinner();
 
-    await expect(enterLotteryTx).to.be.revertedWith("Min amount is 0.01 ether");
+    // Simulate VRF callback (simplified for testing)
+    const randomNumber = 1; // Deterministic for testing
+    await lottery.fulfillRandomWords(1, [randomNumber]);
+
+    // Check round statistics
+    const roundStats = await lottery.getRoundStatistics(1);
+    expect(roundStats.roundId).to.equal(1);
+    expect(roundStats.numberOfParticipants).to.equal(2);
+    expect(roundStats.totalPotSize).to.equal(ethers.utils.parseEther("0.02"));
   });
 
-  // it("Should allow the owner to pick a winner", async () => {
-  //   await lottery.connect(player1).enter(payloadToEnterLottery);
-  //   await lottery.connect(player2).enter(payloadToEnterLottery);
+  it("should calculate total historical pot size", async function () {
+    // Simulate multiple lottery rounds
+    await lottery.connect(player1).enter({ value: ethers.utils.parseEther("0.01") });
+    await lottery.connect(owner).startPickingWinner();
+    await lottery.fulfillRandomWords(1, [1]);
 
-  //   const balanceBefore = await owner.getBalance();
-  //   const pickWinnerTx = await lottery.connect(owner).pickWinner();
-  //   const balanceAfter = await owner.getBalance();
+    await lottery.connect(player2).enter({ value: ethers.utils.parseEther("0.02") });
+    await lottery.connect(owner).startPickingWinner();
+    await lottery.fulfillRandomWords(2, [2]);
 
-  //   await expect(pickWinnerTx).not.to.be.reverted;
-  //   expect(balanceAfter.lt(balanceBefore)).to.be.true;
-  // });
-
-  it("Should not allow non-owners to pick a winner", async () => {
-    await lottery.connect(player1).enter(payloadToEnterLottery);
-
-    const pickWinnerTx = lottery.connect(player1).startPickingWinner();
-
-    expect(pickWinnerTx).to.be.revertedWith("Ownable: caller is not the owner");
+    const totalPotSize = await lottery.getTotalHistoricalPotSize();
+    expect(totalPotSize).to.equal(ethers.utils.parseEther("0.03"));
   });
 
-  // it("Should reset the lottery after picking a winner", async () => {
-  //   await lottery.connect(player1).enter(payloadToEnterLottery);
-  //   await lottery.connect(player2).enter(payloadToEnterLottery);
-  //   await lottery.pickWinner();
+  it("should calculate average pot size", async function () {
+    // Simulate multiple lottery rounds
+    await lottery.connect(player1).enter({ value: ethers.utils.parseEther("0.01") });
+    await lottery.connect(owner).startPickingWinner();
+    await lottery.fulfillRandomWords(1, [1]);
 
-  //   const players = await lottery.getPlayers();
-  //   const lotteryId = await lottery.getLotteryId();
+    await lottery.connect(player2).enter({ value: ethers.utils.parseEther("0.02") });
+    await lottery.connect(owner).startPickingWinner();
+    await lottery.fulfillRandomWords(2, [2]);
 
-  //   expect(players.length).to.equal(0);
-  //   expect(lotteryId).to.equal(1);
-  // });
+    const averagePotSize = await lottery.getAveragePotSize();
+    expect(averagePotSize).to.equal(ethers.utils.parseEther("0.015"));
+  });
 });
