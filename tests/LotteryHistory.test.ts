@@ -1,4 +1,3 @@
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { ethers } from "hardhat";
 import { expect } from "chai";
 
@@ -13,7 +12,7 @@ describe('LotteryHistory', () => {
     }
 
     it('should record a lottery round', async () => {
-        const { lotteryHistory, winner } = await loadFixture(deployLotteryHistoryFixture);
+        const { lotteryHistory, winner } = await deployLotteryHistoryFixture();
 
         const potSize = ethers.parseEther('10');
         const participantCount = 5;
@@ -30,7 +29,7 @@ describe('LotteryHistory', () => {
     });
 
     it('should retrieve lottery round history', async () => {
-        const { lotteryHistory, winner, owner } = await loadFixture(deployLotteryHistoryFixture);
+        const { lotteryHistory, winner, owner } = await deployLotteryHistoryFixture();
 
         const potSize1 = ethers.parseEther('10');
         const participantCount1 = 5;
@@ -47,7 +46,7 @@ describe('LotteryHistory', () => {
     });
 
     it('should throw error for invalid round index', async () => {
-        const { lotteryHistory } = await loadFixture(deployLotteryHistoryFixture);
+        const { lotteryHistory } = await deployLotteryHistoryFixture();
 
         await expect(lotteryHistory.getLotteryRoundByIndex(0)).to.be.revertedWith('Invalid round index');
     });
